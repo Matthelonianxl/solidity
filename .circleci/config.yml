@@ -106,13 +106,18 @@ defaults:
       - store_test_results: *store_test_results
       - store_artifacts: *artifacts_test_results
 
+  - test_ubuntu1810: &test_ubuntu1810
+      docker:
+        - image: ethereum/solidity-buildpack-deps:ubuntu1810
+      steps: *test_steps
+
   - test_ubuntu1904: &test_ubuntu1904
       docker:
         - image: ethereum/solidity-buildpack-deps:ubuntu1904
       steps: *test_steps
 
   - test_asan: &test_asan
-      <<: *test_ubuntu1904
+      <<: *test_ubuntu1810
       steps:
       - checkout
       - attach_workspace:
