@@ -15,12 +15,17 @@
 	along with solidity.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <test/EVMHost.h>
+#include <evmone/evmone.h>
 #include <test/tools/ossfuzz/abiV2FuzzerCommon.h>
 #include <test/tools/ossfuzz/protoToAbiV2.h>
 #include <src/libfuzzer/libfuzzer_macro.h>
 #include <fstream>
 
+static auto evmone = evmc::vm{evmc_create_evmone()};
+
 using namespace dev::test::abiv2fuzzer;
+using namespace dev::test;
 using namespace dev;
 using namespace std;
 
@@ -55,6 +60,37 @@ DEFINE_PROTO_FUZZER(Contract const& _input)
 		cout << contract_source << endl;
 		throw;
 	}
-	// TODO: Call evmone wrapper here
-	return;
+
+	if (const char* dump_path = getenv("PROTO_FUZZER_DUMP_CODE"))
+	{
+		ofstream of("code/" + string(dump_path));
+		of << toHex(byteCode);
+
+		ofstream of2("contract/" + string(dump_path));
+		of2 << contract_source;
+	}
+
+	// TODO: Wrap this in an API
+	langutil::EVMVersion version = langutil::EVMVersion();
+	auto hostContext = EVMHost(version, evmone);
+	evmc_message message;
+	message.gas = std::numeric_limits<int64_t>::max();
+	message.input_data = reinterpret_cast<uint8_t const*>(hexEncodedInput.data());
+	message.input_size = hexEncodedInput.size();
+
+	auto result = evmone.execute(
+		hostContext,
+		hostContext.getRevision(),
+		message,
+		byteCode.data(),
+		byteCode.size()
+	);
+	std::cout << result.status_code << std::endl;
+	std::cout << hexEncodedInput << std::endl;
+	solAssert(result.status_code == EVMC_SUCCESS, "Proto ABIv2 fuzzer: EVM One reported failure.");
+	solAssert(
+		result.output_data[30] == u'\x03' &&
+		result.output_data[31] == u'\xE8',
+		"Proto ABIv2 fuzzer: ABIv2 coding failure found"
+	);
 }
